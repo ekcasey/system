@@ -18,7 +18,12 @@ package build
 
 import (
 	"context"
+	"fmt"
 	"strings"
+
+	"github.com/google/go-containerregistry/pkg/authn"
+	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 
 	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
@@ -95,11 +100,17 @@ func (r *ContainerReconciler) reconcile(ctx context.Context, log logr.Logger, co
 		}
 		return ctrl.Result{}, err
 	}
-	container.Status.MarkImageResolved()
 	container.Status.TargetImage = targetImage
 
-	// TODO resolve to a digest
-	container.Status.LatestImage = container.Status.TargetImage
+	latestimage, err := r.resolveDigestReference(ctx, log, container)
+	if err != nil {
+		container.Status.MarkImageInvalid(err.Error())
+		return ctrl.Result{}, err
+	}
+
+	container.Status.MarkImageResolved()
+
+	container.Status.LatestImage = latestimage
 
 	container.Status.ObservedGeneration = container.Generation
 
@@ -133,4 +144,32 @@ func (r *ContainerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&buildv1alpha1.Container{}).
 		Complete(r)
+}
+
+func (r *ContainerReconciler) resolveDigestReference(ctx context.Context, log logr.Logger, container *buildv1alpha1.Container) (string, error) {
+	ref, err := name.ParseReference(container.Status.TargetImage)
+	if err != nil {
+		log.Error(err, "invalid target image", "image", container.Status.TargetImage)
+		return "", err
+	}
+
+	auth, err := authn.DefaultKeychain.Resolve(ref.Context().Registry)
+	if err != nil {
+		log.Error(err, "unable to resolve auth for registry", "registry", ref.Context().RegistryStr())
+		return "", err
+	}
+
+	img, err := remote.Image(ref, remote.WithAuth(auth))
+	if err != nil {
+		log.Error(err, "failed to read image", "image", ref.String())
+		return "", err
+	}
+
+	digest, err := img.Digest()
+	if err != nil {
+		log.Error(err, "failed to get image digest", "image", ref.String())
+		return "", err
+	}
+
+	return fmt.Sprintf("%s/%s@%s", ref.Context().RegistryStr(), ref.Context().RepositoryStr(), digest), nil
 }
