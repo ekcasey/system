@@ -40,8 +40,6 @@ import (
 	buildv1alpha1 "github.com/projectriff/system/pkg/apis/build/v1alpha1"
 )
 
-const riffBuildServiceAccount = "riff-build"
-
 // CredentialReconciler reconciles a Credential object
 type CredentialReconciler struct {
 	client.Client
