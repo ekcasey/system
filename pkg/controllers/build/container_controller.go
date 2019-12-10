@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
@@ -46,6 +47,8 @@ type ContainerReconciler struct {
 	Log    logr.Logger
 	Scheme *runtime.Scheme
 }
+
+var containerPollingInterval = 1 * time.Minute
 
 // +kubebuilder:rbac:groups=build.projectriff.io,resources=containers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=build.projectriff.io,resources=containers/status,verbs=get;update;patch
@@ -76,7 +79,7 @@ func (r *ContainerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	result, err := r.reconcile(ctx, log, &container)
 
 	// check if status has changed before updating, unless requeued
-	if !result.Requeue && !equality.Semantic.DeepEqual(container.Status, originalContainer.Status) {
+	if !equality.Semantic.DeepEqual(container.Status, originalContainer.Status) {
 		// update status
 		log.Info("updating container status", "diff", cmp.Diff(originalContainer.Status, container.Status))
 		if updateErr := r.Status().Update(ctx, &container); updateErr != nil {
@@ -118,7 +121,10 @@ func (r *ContainerReconciler) reconcile(ctx context.Context, log logr.Logger, co
 
 	container.Status.ObservedGeneration = container.Generation
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{
+		Requeue:      true,
+		RequeueAfter: containerPollingInterval,
+	}, nil
 }
 
 func (r *ContainerReconciler) resolveTargetImage(ctx context.Context, log logr.Logger, container *buildv1alpha1.Container) (name.Reference, error) {
