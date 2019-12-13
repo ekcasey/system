@@ -250,5 +250,6 @@ func (r *CredentialReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// watch for build mutations to create service account
 		Watches(&source.Kind{Type: &buildv1alpha1.Application{}}, enqueueServiceAccountForBuild).
 		Watches(&source.Kind{Type: &buildv1alpha1.Function{}}, enqueueServiceAccountForBuild).
+		Watches(&source.Kind{Type: &buildv1alpha1.Container{}}, enqueueServiceAccountForBuild).
 		Complete(r)
 }

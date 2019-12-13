@@ -122,7 +122,6 @@ func (r *ContainerReconciler) reconcile(ctx context.Context, log logr.Logger, co
 	container.Status.ObservedGeneration = container.Generation
 
 	return ctrl.Result{
-		Requeue:      true,
 		RequeueAfter: containerPollingInterval,
 	}, nil
 }
@@ -196,7 +195,7 @@ func (r *ContainerReconciler) constructKeychain(ctx context.Context, log logr.Lo
 	if err := r.Get(ctx, types.NamespacedName{Namespace: container.Namespace, Name: riffBuildServiceAccount}, &serviceAccount); err != nil {
 		if apierrs.IsNotFound(err) {
 			log.Info("service account not found", "service-account", riffBuildServiceAccount)
-			return gauthn.DefaultKeychain, nil
+			return nil, err
 		} else {
 			log.Error(err, "failed to get service account", "service-account", riffBuildServiceAccount)
 			return nil, err
