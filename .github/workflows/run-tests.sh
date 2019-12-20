@@ -81,11 +81,13 @@ elif [ $RUNTIME = "streaming" ]; then
     kubectl wait streams.streaming.projectriff.io ${upper_stream} --for=condition=Ready --namespace $NAMESPACE --timeout=60s
 
     riff streaming processor create $name --function-ref $name --namespace $NAMESPACE --input ${lower_stream} --output ${upper_stream}
-    kubectl wait processors.streaming.projectriff.io $name --for=condition=Ready --namespace $NAMESPACE --timeout=60s
+    kubectl wait processors.streaming.projectriff.io $name --for=condition=Ready --namespace $NAMESPACE --timeout=5s
 
     kubectl exec riff-dev -n $NAMESPACE -- subscribe ${upper_stream} -n $NAMESPACE --payload-as-string | tee result.txt &
-    sleep 10
     kubectl exec riff-dev -n $NAMESPACE -- publish ${lower_stream} -n $NAMESPACE --payload "system" --content-type "text/plain"
+    # wait for processor to scale from 0
+    sleep 1
+    kubectl wait processors.streaming.projectriff.io $name --for=condition=Ready --namespace $NAMESPACE --timeout=60s
 
     actual_data=""
     expected_data="SYSTEM"
